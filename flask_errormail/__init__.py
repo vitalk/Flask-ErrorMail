@@ -7,9 +7,10 @@
 
     :copyright: (c) 2012 by Jason Wyatt Feinstein.
     :license: MIT, see LICENSE.txt for more details.
-    
+
 """
 import traceback
+
 
 def mail_on_500(app, recipients, sender='noreply@localhost'):
     '''Main function for setting up Flask-ErrorMail to send e-mails when 500 
@@ -61,5 +62,6 @@ def mail_on_500(app, recipients, sender='noreply@localhost'):
         mail.send(msg)
 
     app.register_error_handler(500, email_exception)
+
 
 __all__ = ['mail_on_500']
