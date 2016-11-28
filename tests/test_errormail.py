@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import pytest
-from flask import Flask
 from flask import url_for
 
 
@@ -41,3 +40,12 @@ def test_configure_mail_recipients(client, outbox):
     mail, = outbox
 
     assert mail.recipients == ['this@example.com', 'that@example.com']
+
+
+def test_blueprint(app_with_blueprint, client, outbox):
+    client.get(url_for('bp.should_fail'))
+
+    assert outbox
+
+    mail, = outbox
+    assert 'An error in blueprint' in mail.body

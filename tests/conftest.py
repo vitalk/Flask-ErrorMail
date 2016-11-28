@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 from flask import Flask
+from flask import Blueprint
 from flask import abort
 from flask_mail import Mail
 from flask_errormail import ErrorMail
@@ -18,6 +19,18 @@ def app():
     def should_fail():
         abort(500, 'Hi there')
 
+    return app
+
+
+@pytest.fixture
+def app_with_blueprint(app):
+    bp = Blueprint('bp', __name__)
+
+    @bp.route('/bp-should-fail')
+    def should_fail():
+        abort(500, 'An error in blueprint')
+
+    app.register_blueprint(bp)
     return app
 
 
