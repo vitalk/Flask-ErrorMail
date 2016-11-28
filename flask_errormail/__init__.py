@@ -22,6 +22,13 @@ from werkzeug.local import LocalProxy
 _mail = LocalProxy(lambda: current_app.extensions.get('mail'))
 
 
+default_config = {
+    'ERROR_MAIL_SUBJECT': '[Flask|ErrorMail] Exception Detected',
+    'ERROR_MAIL_RECIPIENTS': ['admin@example.com'],
+    'ERROR_MAIL_SENDER': 'noreply@localhost'
+}
+
+
 class ErrorMail(object):
     '''
     Flask extension for sending emails to administrators when 500 Internal
@@ -50,10 +57,8 @@ class ErrorMail(object):
                 'errors may occur.'
             )
 
-        config = app.config
-        config.setdefault('ERROR_MAIL_SUBJECT', '[Flask|ErrorMail] Exception Detected')
-        config.setdefault('ERROR_MAIL_RECIPIENTS', recipients or ['admin@example.com'])
-        config.setdefault('ERROR_MAIL_SENDER', sender)
+        for key, value in default_config.items():
+            app.config.setdefault(key, value)
 
         app.register_error_handler(500, self.send_error_mail)
 
