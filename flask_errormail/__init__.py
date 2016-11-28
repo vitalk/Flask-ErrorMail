@@ -55,18 +55,19 @@ class ErrorMail(object):
         config.setdefault('ERROR_MAIL_RECIPIENTS', recipients or ['admin@example.com'])
         config.setdefault('ERROR_MAIL_SENDER', sender)
 
-        @app.errorhandler(500)
-        def send_error_email(exception):
-            '''Handles the exception message from Flask by sending an email
-            to the recipients defined in the application config.
-            '''
-            _mail.send(
-                self.create_error_message(exception)
-            )
-            return '', 500
+        app.register_error_handler(500, self.send_error_mail)
 
         app.extensions = getattr(app, 'extensions', {})
         app.extensions['error_mail'] = self
+
+    def send_error_mail(self, exception):
+        '''Handles the exception message from Flask by sending an email
+        to the recipients defined in the application config.
+        '''
+        _mail.send(
+            self.create_error_message(exception)
+        )
+        return '', 500
 
     def get_body(self):
         '''Returns a body for an error mail with traceback and
