@@ -2,19 +2,30 @@
     flask_errormail
     ~~~~~~~~~~~~~~~
 
-    Flask extension for sending emails to administrators when 500 Internal 
+    Flask extension for sending emails to administrators when 500 Internal
     Server Errors occur.
 
     :copyright: (c) 2012 by Jason Wyatt Feinstein.
     :license: MIT, see LICENSE.txt for more details.
 
 """
+import textwrap
 import traceback
 
+from flask import request
+from flask import current_app
+from flask_mail import Mail
+from flask_mail import Message
+from werkzeug.local import LocalProxy
 
-def mail_on_500(app, recipients, sender='noreply@localhost'):
-    '''Main function for setting up Flask-ErrorMail to send e-mails when 500 
-    errors occur.
+
+_mail = LocalProxy(lambda: current_app.extensions.get('mail'))
+
+
+class ErrorMail(object):
+    '''
+    Flask extension for sending emails to administrators when 500 Internal
+    Server Errors occur.
 
     :param app: Flask Application Object
     :type app: flask.Flask
@@ -25,43 +36,83 @@ def mail_on_500(app, recipients, sender='noreply@localhost'):
     :type sender: string
 
     '''
+    def __init__(self, app=None, recipients=None, sender='noreply@localhost'):
+        if app is not None:
+            self.init_app(app, recipients, sender)
 
-    #importing locally, so that the dependencies are only required if 
-    # mail_on_500 is used.
-    from flask import request as __request
-    from flask_mail import Mail as __Mail
-    from flask_mail import Message as __Message
+    def init_app(self, app, recipients=None, sender='noreply@localhost'):
+        mail = app.extensions.get('mail', None)
+        if not mail:
+            app.logger.warning(
+                '`Flask-ErrorMail` extension requires a configured '
+                '`Flask-Mail` instance. Ensure the `Flask-Mail` is '
+                'configured with current application or unexpected '
+                'errors may occur.'
+            )
 
-    mail = __Mail(app)
+        config = app.config
+        config.setdefault('ERROR_MAIL_SUBJECT', '[Flask|ErrorMail] Exception Detected')
+        config.setdefault('ERROR_MAIL_RECIPIENTS', recipients or ['admin@example.com'])
+        config.setdefault('ERROR_MAIL_SENDER', sender)
 
-    # create a closure to track the sender and recipients
-    def email_exception(exception):
-        '''Handles the exception message from Flask by sending an email to the
-        recipients defined in the call to mail_on_500.
+        @app.errorhandler(500)
+        def send_error_email(exception):
+            '''Handles the exception message from Flask by sending an email
+            to the recipients defined in the application config.
+            '''
+            _mail.send(
+                self.create_error_message(exception)
+            )
+            return '', 500
 
+        app.extensions = getattr(app, 'extensions', {})
+        app.extensions['error_mail'] = self
+
+    def get_body(self):
+        '''Returns a body for an error mail with traceback and
+        request info attached.
         '''
+        return textwrap.dedent('''
+            Traceback:
+            {delimiter!s}
+            {traceback!s}
 
-        msg = __Message("[Flask|ErrorMail] Exception Detected",
-                        sender=sender,
-                        recipients=recipients)
-        msg_contents = [
-            'Traceback:',
-            '='*80,
-            traceback.format_exc(),
-        ]
-        msg_contents.append('\n')
-        msg_contents.append('Request Information:')
-        msg_contents.append('='*80)
-        environ = __request.environ
+            Request Information:
+            {delimiter!s}
+            {request_info!s}
+        ''').format(
+            delimiter='='*80,
+            traceback=self.get_traceback(),
+            request_info=self.get_request_info()
+        )
+
+    def create_error_message(self, exception):
+        '''Returns a ~`flask_mail.Message` instance with technical info
+        about exception which occurs.
+        '''
+        return Message(
+            subject=current_app.config['ERROR_MAIL_SUBJECT'],
+            sender=current_app.config['ERROR_MAIL_SENDER'],
+            recipients=current_app.config['ERROR_MAIL_RECIPIENTS'],
+            body=self.get_body()
+        )
+
+    def get_traceback(self):
+        '''Returns the traceback of last exception.'''
+        return traceback.format_exc()
+
+    def get_request_info(self):
+        '''Returns the information about current request.'''
+        rt = []
+        environ = request.environ
         environkeys = sorted(environ.keys())
         for key in environkeys:
-            msg_contents.append('%s: %s' % (key, environ.get(key)))
-
-        msg.body = '\n'.join(msg_contents) + '\n'
-
-        mail.send(msg)
-
-    app.register_error_handler(500, email_exception)
+            rt.append('{}: {}'.format(key, environ.get(key)))
+        return '\n'.join(rt)
 
 
-__all__ = ['mail_on_500']
+mail_on_500 = ErrorMail
+'''An alias for compatibility with previous versions.'''
+
+
+__all__ = ['mail_on_500', 'ErrorMail']
